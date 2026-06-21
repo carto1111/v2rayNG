@@ -81,7 +81,7 @@ object AppConfig {
 
     /** Baidu tunnel constants. */
     const val BAIDU_TUNNEL_ARM64 = "baidu_tunnel_arm64"
-    const val BAIDU_TUNNEL_PORT = 10809
+    const val BAIDU_TUNNEL_PORT = 1082
     const val TAG_BAIDU_TUNNEL = "baidu-tunnel"
     const val PREF_BAIDU_TUNNEL_ENABLED = "pref_baidu_tunnel_enabled"
     const val PREF_BAIDU_TUNNEL_TEST_NODE_CREATED = "pref_baidu_tunnel_test_node_created"
