@@ -95,6 +95,7 @@ object NotificationManager {
         mBuilder = NotificationCompat.Builder(service, channelId)
             .setSmallIcon(R.drawable.ic_stat_name)
             .setContentTitle(currentConfig?.remarks)
+            .setContentText("🚀 Baidu Tunnel: starting…")
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setOngoing(true)
             .setShowWhen(false)

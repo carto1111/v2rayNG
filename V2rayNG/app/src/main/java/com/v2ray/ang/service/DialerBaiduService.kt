@@ -11,6 +11,7 @@ import java.net.SocketTimeoutException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import javax.net.ssl.SSLSocketFactory
 
 /**
  * Baidu Tunnel SOCKS5 proxy service.
@@ -399,47 +400,99 @@ class DialerBaiduService : IDialerService {
         targetHost: String,
         targetPort: Int
     ): Socket? {
+        // Try TLS first (port 443), fall back to bare TCP
+        // Some phones (Huawei) block non-TLS traffic on port 443
+        val socket = tryTlsConnect(proxyHost, proxyPort, targetHost, targetPort)
+        if (socket != null) return socket
+
+        return tryBareTcpConnect(proxyHost, proxyPort, targetHost, targetPort)
+    }
+
+    /** Try TLS connection first */
+    private fun tryTlsConnect(
+        proxyHost: String, proxyPort: Int,
+        targetHost: String, targetPort: Int
+    ): Socket? {
         return try {
-            // Go connects with bare TCP to port 443, NO TLS
             val sock = Socket()
             sock.connect(
                 java.net.InetSocketAddress(proxyHost, proxyPort),
                 BAIDU_CONNECT_TIMEOUT_MS
             )
+            val sslFactory = SSLSocketFactory.getDefault() as SSLSocketFactory
+            val sslSocket = sslFactory.createSocket(sock, proxyHost, proxyPort, true) as javax.net.ssl.SSLSocket
+            sslSocket.startHandshake()
 
+            val output = sslSocket.getOutputStream()
+            val input = sslSocket.getInputStream()
+
+            if (sendConnectAndCheckResponse(output, input, targetHost, targetPort)) {
+                LogUtil.e(TAG, "🚀 Baidu tunnel established (TLS)")
+                sslSocket
+            } else {
+                sslSocket.close()
+                null
+            }
+        } catch (e: Exception) {
+            LogUtil.d(TAG, "TLS connect failed, trying bare TCP: ${e.message}")
+            null
+        }
+    }
+
+    /** Fall back to bare TCP (matching Go exactly) */
+    private fun tryBareTcpConnect(
+        proxyHost: String, proxyPort: Int,
+        targetHost: String, targetPort: Int
+    ): Socket? {
+        return try {
+            val sock = Socket()
+            sock.connect(
+                java.net.InetSocketAddress(proxyHost, proxyPort),
+                BAIDU_CONNECT_TIMEOUT_MS
+            )
             val output = sock.getOutputStream()
             val input = sock.getInputStream()
 
-            val connectRequest = buildString {
-                append("CONNECT $targetHost:$targetPort HTTP/1.1\r\n")
-                append("Host: sptest.baidu.com\r\n")
-                append("X-T5-Auth: $X_T5_AUTH_TOKEN\r\n")
-                append("User-Agent: $USER_AGENT\r\n")
-                append("Proxy-Connection: keep-alive\r\n")
-                append("Connection: keep-alive\r\n")
-                append("\r\n")
-            }
-
-            output.write(connectRequest.toByteArray(Charsets.UTF_8))
-            output.flush()
-
-            val responseStr = readHttpResponse(input)
-            LogUtil.e(TAG, "🚀 Baidu CONNECT response: ${responseStr.take(100)}")
-
-            if (!responseStr.startsWith("HTTP/1.1 200") && !responseStr.startsWith("HTTP/1.0 200")) {
-                LogUtil.e(TAG, "❌ Baidu proxy CONNECT failed: ${responseStr.take(200)}")
+            if (sendConnectAndCheckResponse(output, input, targetHost, targetPort)) {
+                LogUtil.e(TAG, "🚀 Baidu tunnel established (bare TCP)")
+                sock
+            } else {
                 sock.close()
-                return null
+                null
             }
-
-            sock
-        } catch (e: SocketTimeoutException) {
-            LogUtil.d(TAG, "Baidu tunnel connect timeout: ${e.message}")
-            null
         } catch (e: Exception) {
-            LogUtil.d(TAG, "Baidu tunnel connect failed: ${e.message}")
+            LogUtil.d(TAG, "Bare TCP connect failed: ${e.message}")
             null
         }
+    }
+
+    /** Send HTTP CONNECT and check response */
+    private fun sendConnectAndCheckResponse(
+        output: OutputStream, input: InputStream,
+        targetHost: String, targetPort: Int
+    ): Boolean {
+        val connectRequest = buildString {
+            append("CONNECT $targetHost:$targetPort HTTP/1.1\r\n")
+            append("Host: sptest.baidu.com\r\n")
+            append("X-T5-Auth: $X_T5_AUTH_TOKEN\r\n")
+            append("User-Agent: $USER_AGENT\r\n")
+            append("Proxy-Connection: keep-alive\r\n")
+            append("Connection: keep-alive\r\n")
+            append("\r\n")
+        }
+
+        output.write(connectRequest.toByteArray(Charsets.UTF_8))
+        output.flush()
+
+        val responseStr = readHttpResponse(input)
+        LogUtil.e(TAG, "🚀 Baidu CONNECT response: ${responseStr.take(100)}")
+
+        if (!responseStr.startsWith("HTTP/1.1 200") && !responseStr.startsWith("HTTP/1.0 200")) {
+            LogUtil.e(TAG, "❌ Baidu proxy CONNECT failed: ${responseStr.take(200)}")
+            return false
+        }
+
+        return true
     }
 
     private fun readHttpResponse(input: InputStream): String {
