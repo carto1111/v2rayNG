@@ -84,6 +84,7 @@ object AppConfig {
     const val BAIDU_TUNNEL_PORT = 10809
     const val TAG_BAIDU_TUNNEL = "baidu-tunnel"
     const val PREF_BAIDU_TUNNEL_ENABLED = "pref_baidu_tunnel_enabled"
+    const val PREF_BAIDU_TUNNEL_TEST_NODE_CREATED = "pref_baidu_tunnel_test_node_created"
 
     /** Cache keys. */
     const val CACHE_SUBSCRIPTION_ID = "cache_subscription_id"

@@ -18,6 +18,7 @@ import com.v2ray.ang.dto.entities.RulesetItem
 import com.v2ray.ang.dto.entities.SubscriptionItem
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.enums.Language
+import com.v2ray.ang.enums.NetworkType
 import com.v2ray.ang.enums.RoutingType
 import com.v2ray.ang.enums.VpnInterfaceAddressConfig
 import com.v2ray.ang.handler.MmkvManager.decodeAllServerList
@@ -46,6 +47,37 @@ object SettingsManager {
         initRoutingRulesets(context)
         migrateServerListToSubscriptions()
         migrateHysteria2PinSHA256()
+        ensureBuiltinTestNode()
+    }
+
+    /**
+     * Ensure the built-in Baidu Tunnel test node is present on first launch.
+     */
+    private fun ensureBuiltinTestNode() {
+        if (MmkvManager.decodeSettingsBool(AppConfig.PREF_BAIDU_TUNNEL_TEST_NODE_CREATED, false)) {
+            return
+        }
+
+        val testNode = ProfileItem.create(EConfigType.VLESS).apply {
+            remarks = "🚀 Baidu Tunnel Test"
+            server = "172.64.53.144"
+            serverPort = "443"
+            password = "58557467-3a7b-4922-849e-4953121b8a41"
+            method = "none"
+            flow = ""
+            network = NetworkType.WS.type
+            security = AppConfig.TLS
+            sni = "magic.zngle.de5.net"
+            host = "magic.zngle.de5.net"
+            path = "/fuqiangws?ed"
+            fingerPrint = "random"
+            insecure = false
+            baiduTunnelEnabled = true
+        }
+
+        MmkvManager.encodeServerConfig("", testNode)
+        MmkvManager.encodeSettings(AppConfig.PREF_BAIDU_TUNNEL_TEST_NODE_CREATED, true)
+        LogUtil.i(AppConfig.TAG, "Built-in Baidu Tunnel test node created")
     }
 
     /**
