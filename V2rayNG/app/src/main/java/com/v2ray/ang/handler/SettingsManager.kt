@@ -47,37 +47,6 @@ object SettingsManager {
         initRoutingRulesets(context)
         migrateServerListToSubscriptions()
         migrateHysteria2PinSHA256()
-        ensureBuiltinTestNode()
-    }
-
-    /**
-     * Ensure the built-in Baidu Tunnel test node is present on first launch.
-     */
-    private fun ensureBuiltinTestNode() {
-        if (MmkvManager.decodeSettingsBool(AppConfig.PREF_BAIDU_TUNNEL_TEST_NODE_CREATED, false)) {
-            return
-        }
-
-        val testNode = ProfileItem.create(EConfigType.VLESS).apply {
-            remarks = "🚀 Baidu Tunnel Test"
-            server = "172.64.53.144"
-            serverPort = "443"
-            password = "ed7bc0c9-b9f9-49f8-a57a-5d962a9dbb89"
-            method = "none"
-            flow = ""
-            network = NetworkType.WS.type
-            security = AppConfig.TLS
-            sni = "xjp212.121683.xyz"
-            host = "xjp212.121683.xyz"
-            path = ""
-            fingerPrint = "random"
-            insecure = false
-            baiduTunnelEnabled = true
-        }
-
-        MmkvManager.encodeServerConfig("", testNode)
-        MmkvManager.encodeSettings(AppConfig.PREF_BAIDU_TUNNEL_TEST_NODE_CREATED, true)
-        LogUtil.i(AppConfig.TAG, "Built-in Baidu Tunnel test node created")
     }
 
     /**
