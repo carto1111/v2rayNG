@@ -211,4 +211,26 @@
             android:textColor="@android:color/darker_gray"
             android:textSize="12sp" />
     </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/padding_spacing_dp16"
+        android:orientation="vertical">
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/sw_baidu_tunnel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/server_lab_baidu_tunnel"
+            app:theme="@style/BrandedSwitch" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/padding_spacing_dp4"
+            android:text="@string/server_lab_baidu_tunnel_tip"
+            android:textColor="@android:color/darker_gray"
+            android:textSize="12sp" />
+    </LinearLayout>
 </LinearLayout>

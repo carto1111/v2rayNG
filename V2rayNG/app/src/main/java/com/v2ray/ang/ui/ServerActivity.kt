@@ -2,6 +2,7 @@ package com.v2ray.ang.ui
 
 import android.os.Bundle
 import android.text.TextUtils
+import androidx.appcompat.widget.SwitchCompat
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -153,6 +154,7 @@ class ServerActivity : BaseActivity() {
     private val container_pinned_ca256: LinearLayout? by lazy { findViewById(R.id.lay_pinned_ca256) }
     private val layout_browser_dialer: LinearLayout? by lazy { findViewById(R.id.layout_browser_dialer) }
     private val sp_browser_dialer_mode: Spinner? by lazy { findViewById(R.id.sp_browser_dialer_mode) }
+    private val sw_baidu_tunnel: SwitchCompat? by lazy { findViewById(R.id.sw_baidu_tunnel) }
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -445,6 +447,8 @@ class ServerActivity : BaseActivity() {
             sp_browser_dialer_mode?.setSelection(browserDialerMode)
         }
 
+        sw_baidu_tunnel?.isChecked = config.baiduTunnelEnabled
+
         return true
     }
 
@@ -474,6 +478,7 @@ class ServerActivity : BaseActivity() {
             Utils.getEditable(WIREGUARD_LOCAL_ADDRESS_V4)
         et_local_mtu?.text = Utils.getEditable(WIREGUARD_LOCAL_MTU)
         sp_browser_dialer_mode?.setSelection(0)
+        sw_baidu_tunnel?.isChecked = false
         return true
     }
 
@@ -616,6 +621,8 @@ class ServerActivity : BaseActivity() {
         } else {
             profileItem.browserDialerMode = null
         }
+
+        profileItem.baiduTunnelEnabled = sw_baidu_tunnel?.isChecked ?: false
     }
 
     private fun saveTls(config: ProfileItem) {
