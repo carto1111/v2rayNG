@@ -108,7 +108,10 @@ class DialerBaiduService : IDialerService {
         }
 
         try {
-            serverSocket = ServerSocket(port, 128, InetAddress.getByName(host))
+            val sock = ServerSocket()
+            sock.setReuseAddress(true)
+            sock.bind(java.net.InetSocketAddress(InetAddress.getByName(host), port), 128)
+            serverSocket = sock
             executor = Executors.newCachedThreadPool { runnable ->
                 Thread(runnable, "BaiduTunnel-Worker").apply {
                     isDaemon = true
