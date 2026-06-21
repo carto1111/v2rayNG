@@ -15,6 +15,7 @@ import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
 import com.v2ray.ang.core.CoreServiceManager
 import com.v2ray.ang.dto.entities.ProfileItem
+import com.v2ray.ang.service.DialerBaiduService
 import com.v2ray.ang.extension.toSpeedString
 import com.v2ray.ang.ui.MainActivity
 import com.v2ray.ang.util.LogUtil
@@ -265,6 +266,13 @@ object NotificationManager {
                 directUplink / sinceLastQueryInSeconds,
                 directDownlink / sinceLastQueryInSeconds
             )
+
+            // Append Baidu tunnel status
+            val baiduStatus = DialerBaiduService.status
+            if (baiduStatus != "disabled") {
+                text.append("\n🌐 Baidu Tunnel: $baiduStatus")
+            }
+
             updateNotification(text.toString(), proxyTotal, directTotal)
         }
         lastQueryTime = queryTime

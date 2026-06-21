@@ -11,8 +11,6 @@ import java.net.SocketTimeoutException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
-import android.os.Handler
-import android.os.Looper
 
 /**
  * Baidu Tunnel SOCKS5 proxy service.
@@ -25,13 +23,6 @@ import android.os.Looper
  * - X-T5-Auth: 482857715 (fixed token)
  * - Host: sptest.baidu.com
  * - User-Agent: okhttp/3.11.0 Dalvik/2.1.0 ... baiduboxapp/11.0.5.12
- *
- * Flow:
- * 1. Xray-core routes traffic to this SOCKS5 server
- * 2. SOCKS5 handshake and CONNECT request are handled
- * 3. For each CONNECT, open a TLS connection to cloudnproxy.baidu.com:443
- * 4. Send HTTP CONNECT with X-T5-Auth + baidu-specific headers
- * 5. Relay data bidirectionally once connection is established
  */
 class DialerBaiduService : IDialerService {
 
@@ -71,6 +62,10 @@ class DialerBaiduService : IDialerService {
 
         // Buffer size for relay (same as Go BUFFER_SIZE)
         private const val BUFFER_SIZE = 8192
+
+        @Volatile
+        var status: String = "disabled"
+            private set
     }
 
     @Volatile
@@ -80,11 +75,10 @@ class DialerBaiduService : IDialerService {
     private var executor: ExecutorService? = null
 
     private val running = AtomicBoolean(false)
-    private var appContext: Context? = null
 
     override fun start(context: Context, dialerAddr: String) {
         stop()
-        appContext = context
+        status = "starting"
 
         if (dialerAddr.isEmpty()) {
             LogUtil.e(TAG, "Empty dialer address")
@@ -112,8 +106,8 @@ class DialerBaiduService : IDialerService {
             }
             running.set(true)
 
+            status = "active"
             LogUtil.e(TAG, "🚀 Baidu Tunnel SOCKS5 server started on $dialerAddr")
-            showToast("🚀 Baidu Tunnel started")
 
             // Start acceptor thread
             Thread({ acceptLoop() }, "BaiduTunnel-Acceptor").apply {
@@ -141,17 +135,8 @@ class DialerBaiduService : IDialerService {
         }
         executor = null
 
+        status = "stopped"
         LogUtil.e(TAG, "🚀 Baidu Tunnel SOCKS5 server stopped")
-    }
-
-    private fun showToast(msg: String) {
-        try {
-            val ctx = appContext ?: return
-            Handler(Looper.getMainLooper()).post {
-                android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_SHORT).show()
-            }
-        } catch (_: Exception) {
-        }
     }
 
     private fun acceptLoop() {
@@ -202,8 +187,8 @@ class DialerBaiduService : IDialerService {
                 // Send SOCKS5 success response
                 sendSocks5Success(output, client.localAddress.address, client.localPort)
 
+                status = "tunneling"
                 LogUtil.e(TAG, "🚀 Baidu tunnel established for ${connectRequest.destinationAddress}:${connectRequest.destinationPort}")
-            showToast("🚀 Baidu → ${connectRequest.destinationAddress}:${connectRequest.destinationPort}")
 
                 // Start bidirectional relay (matching Go relayBidirectional)
                 relayBidirectional(client, baiduSocket)
@@ -218,7 +203,6 @@ class DialerBaiduService : IDialerService {
     // ------------------------------------------------------------------
 
     private fun handleSocks5Handshake(input: InputStream, output: OutputStream): Boolean {
-        // Read greeting: VER, NMETHODS, METHODS[]
         val version = input.read()
         if (version != SOCKS_VERSION) {
             LogUtil.d(TAG, "Invalid SOCKS version: $version")
@@ -240,14 +224,12 @@ class DialerBaiduService : IDialerService {
             totalRead += read
         }
 
-        // Prefer NO AUTH; fall back to USERNAME/PASSWORD if client requires it
         val selectedMethod = when {
             methods.contains(AUTH_NONE.toByte()) -> AUTH_NONE
             methods.contains(AUTH_PASSWORD.toByte()) -> AUTH_PASSWORD
             else -> AUTH_NO_ACCEPTABLE
         }
 
-        // Send greeting response
         output.write(byteArrayOf(SOCKS_VERSION.toByte(), selectedMethod.toByte()))
         output.flush()
 
@@ -256,7 +238,6 @@ class DialerBaiduService : IDialerService {
             return false
         }
 
-        // Handle username/password auth if selected
         if (selectedMethod == AUTH_PASSWORD) {
             return handleSocks5PasswordAuth(input, output)
         }
@@ -292,14 +273,13 @@ class DialerBaiduService : IDialerService {
             totalRead += read
         }
 
-        // Accept any credentials (matching Go behavior)
         output.write(byteArrayOf(0x01, 0x00))
         output.flush()
         return true
     }
 
     // ------------------------------------------------------------------
-    // SOCKS5 request parsing (matching Go readSOCKSRequest + readSOCKSAddress)
+    // SOCKS5 request parsing
     // ------------------------------------------------------------------
 
     private data class ConnectRequest(
@@ -323,7 +303,6 @@ class DialerBaiduService : IDialerService {
             return null
         }
 
-        // Skip reserved byte
         input.read()
 
         val addressType = input.read()
@@ -348,9 +327,7 @@ class DialerBaiduService : IDialerService {
             ATYP_IPV6 -> {
                 val addr = ByteArray(16)
                 readFully(input, addr)
-                // Format IPv6 address with brackets
                 val ip = InetAddress.getByAddress(addr).hostAddress
-                // Go uses net.IP.String() which may produce a compact form
                 ip
             }
             else -> {
@@ -376,7 +353,7 @@ class DialerBaiduService : IDialerService {
     }
 
     // ------------------------------------------------------------------
-    // SOCKS5 reply helpers (matching Go sendSOCKSReply)
+    // SOCKS5 reply helpers
     // ------------------------------------------------------------------
 
     private fun sendSocks5Error(output: OutputStream?, errorCode: Int) {
@@ -385,10 +362,10 @@ class DialerBaiduService : IDialerService {
             output.write(byteArrayOf(
                 SOCKS_VERSION.toByte(),
                 errorCode.toByte(),
-                0x00,  // RSV
+                0x00,
                 ATYP_IPV4.toByte(),
-                0x00, 0x00, 0x00, 0x00,  // 0.0.0.0
-                0x00, 0x00  // port 0
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00
             ))
             output.flush()
         } catch (_: Exception) {
@@ -401,7 +378,7 @@ class DialerBaiduService : IDialerService {
             output.write(byteArrayOf(
                 SOCKS_VERSION.toByte(),
                 REP_SUCCESS.toByte(),
-                0x00,  // RSV
+                0x00,
                 ATYP_IPV4.toByte(),
                 addr[0], addr[1], addr[2], addr[3],
                 (bindPort shr 8).toByte(),
@@ -416,15 +393,6 @@ class DialerBaiduService : IDialerService {
     // Baidu tunnel dial (matching Go dialBaiduTunnel exactly)
     // ------------------------------------------------------------------
 
-    /**
-     * Dials the Baidu tunnel proxy and establishes a CONNECT tunnel.
-     *
-     * Matches the Go reference implementation:
-     * - net.DialTimeout with 10s timeout
-     * - HTTP CONNECT with exact headers
-     * - http.ReadResponse to parse the CONNECT response
-     * - Returns the raw socket on success, null on failure
-     */
     private fun dialBaiduTunnel(
         proxyHost: String,
         proxyPort: Int,
@@ -432,8 +400,7 @@ class DialerBaiduService : IDialerService {
         targetPort: Int
     ): Socket? {
         return try {
-            // Dial with timeout (matching Go net.DialTimeout)
-            // IMPORTANT: Go connects with bare TCP to port 443, NO TLS
+            // Go connects with bare TCP to port 443, NO TLS
             val sock = Socket()
             sock.connect(
                 java.net.InetSocketAddress(proxyHost, proxyPort),
@@ -443,8 +410,6 @@ class DialerBaiduService : IDialerService {
             val output = sock.getOutputStream()
             val input = sock.getInputStream()
 
-            // Build CONNECT request matching Go exactly:
-            // fmt.Sprintf("CONNECT %s:%s HTTP/1.1\r\nHost: sptest.baidu.com\r\nX-T5-Auth: 482857715\r\nUser-Agent: okhttp/3.11.0 ...\r\nProxy-Connection: keep-alive\r\nConnection: keep-alive\r\n\r\n")
             val connectRequest = buildString {
                 append("CONNECT $targetHost:$targetPort HTTP/1.1\r\n")
                 append("Host: sptest.baidu.com\r\n")
@@ -458,17 +423,15 @@ class DialerBaiduService : IDialerService {
             output.write(connectRequest.toByteArray(Charsets.UTF_8))
             output.flush()
 
-            // Read HTTP response (matching Go http.ReadResponse)
             val responseStr = readHttpResponse(input)
             LogUtil.e(TAG, "🚀 Baidu CONNECT response: ${responseStr.take(100)}")
 
             if (!responseStr.startsWith("HTTP/1.1 200") && !responseStr.startsWith("HTTP/1.0 200")) {
-                LogUtil.e(TAG, "Baidu proxy CONNECT failed: ${responseStr.take(200)}")
+                LogUtil.e(TAG, "❌ Baidu proxy CONNECT failed: ${responseStr.take(200)}")
                 sock.close()
                 return null
             }
 
-            // Success - tunnel established
             sock
         } catch (e: SocketTimeoutException) {
             LogUtil.d(TAG, "Baidu tunnel connect timeout: ${e.message}")
@@ -479,23 +442,16 @@ class DialerBaiduService : IDialerService {
         }
     }
 
-    /**
-     * Read the HTTP response headers until \r\n\r\n.
-     * Matches Go's http.ReadResponse behavior for the CONNECT response.
-     */
     private fun readHttpResponse(input: InputStream): String {
         val response = StringBuilder()
         val buffer = ByteArray(1024)
-        var crlfCount = 0
 
-        // Use a read loop that properly detects the end of headers
         while (true) {
             val read = input.read(buffer)
             if (read < 0) break
 
             response.append(String(buffer, 0, read, Charsets.UTF_8))
 
-            // Check for \r\n\r\n end of headers
             if (response.contains("\r\n\r\n")) {
                 break
             }
@@ -508,16 +464,10 @@ class DialerBaiduService : IDialerService {
     // Bidirectional relay (matching Go relayBidirectional)
     // ------------------------------------------------------------------
 
-    /**
-     * Bidirectional relay between client and target connections.
-     * Uses two threads with io.Copy-like behavior, matching Go's relayBidirectional.
-     * When one direction finishes, both connections are closed.
-     */
     private fun relayBidirectional(client: Socket, target: Socket) {
         val errc = arrayOfNulls<Throwable>(2)
         val threads = arrayOfNulls<Thread>(2)
 
-        // Thread 1: client -> target
         threads[0] = Thread({
             try {
                 relayStream(client.getInputStream(), target.getOutputStream())
@@ -526,7 +476,6 @@ class DialerBaiduService : IDialerService {
             }
         }, "Relay-ClientToBaidu")
 
-        // Thread 2: target -> client
         threads[1] = Thread({
             try {
                 relayStream(target.getInputStream(), client.getOutputStream())
@@ -538,13 +487,11 @@ class DialerBaiduService : IDialerService {
         threads[0]!!.start()
         threads[1]!!.start()
 
-        // Wait for both to finish (matching Go's select on errc)
         try {
             threads[0]!!.join()
         } catch (_: InterruptedException) {
         }
 
-        // Close both sockets immediately (matching Go: left.Close(); right.Close())
         try {
             client.close()
         } catch (_: Exception) {
@@ -554,17 +501,12 @@ class DialerBaiduService : IDialerService {
         } catch (_: Exception) {
         }
 
-        // Wait for the other direction to finish
         try {
             threads[1]!!.join()
         } catch (_: InterruptedException) {
         }
     }
 
-    /**
-     * Stream relay matching Go's io.Copy behavior.
-     * Reads from input, writes to output until EOF or error.
-     */
     private fun relayStream(input: InputStream, output: OutputStream) {
         val buffer = ByteArray(BUFFER_SIZE)
         try {
@@ -579,7 +521,6 @@ class DialerBaiduService : IDialerService {
                 }
             }
         } catch (e: Exception) {
-            // Normal for bidirectional relay when one side closes
             LogUtil.d(TAG, "Relay stream done: ${e.message}")
         } finally {
             try {
