@@ -232,7 +232,7 @@ class DialerBaiduService : IDialerService {
         }
 
         // Send greeting response
-        output.write(byteArrayOf(SOCKS_VERSION.toInt(), selectedMethod.toInt()))
+        output.write(byteArrayOf(SOCKS_VERSION.toByte(), selectedMethod.toByte()))
         output.flush()
 
         if (selectedMethod == AUTH_NO_ACCEPTABLE) {
@@ -367,10 +367,10 @@ class DialerBaiduService : IDialerService {
         if (output == null) return
         try {
             output.write(byteArrayOf(
-                SOCKS_VERSION.toInt(),
-                errorCode,
+                SOCKS_VERSION.toByte(),
+                errorCode.toByte(),
                 0x00,  // RSV
-                ATYP_IPV4.toInt(),
+                ATYP_IPV4.toByte(),
                 0x00, 0x00, 0x00, 0x00,  // 0.0.0.0
                 0x00, 0x00  // port 0
             ))
@@ -383,10 +383,10 @@ class DialerBaiduService : IDialerService {
         try {
             val addr = bindAddr ?: byteArrayOf(0x00, 0x00, 0x00, 0x00)
             output.write(byteArrayOf(
-                SOCKS_VERSION.toInt(),
-                REP_SUCCESS,
+                SOCKS_VERSION.toByte(),
+                REP_SUCCESS.toByte(),
                 0x00,  // RSV
-                ATYP_IPV4.toInt(),
+                ATYP_IPV4.toByte(),
                 addr[0], addr[1], addr[2], addr[3],
                 (bindPort shr 8).toByte(),
                 (bindPort and 0xFF).toByte()
