@@ -11,6 +11,8 @@ import java.net.SocketTimeoutException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import android.os.Handler
+import android.os.Looper
 
 /**
  * Baidu Tunnel SOCKS5 proxy service.
@@ -78,9 +80,11 @@ class DialerBaiduService : IDialerService {
     private var executor: ExecutorService? = null
 
     private val running = AtomicBoolean(false)
+    private var appContext: Context? = null
 
     override fun start(context: Context, dialerAddr: String) {
         stop()
+        appContext = context
 
         if (dialerAddr.isEmpty()) {
             LogUtil.e(TAG, "Empty dialer address")
@@ -108,7 +112,8 @@ class DialerBaiduService : IDialerService {
             }
             running.set(true)
 
-            LogUtil.i(TAG, "Baidu Tunnel SOCKS5 server started on $dialerAddr")
+            LogUtil.e(TAG, "🚀 Baidu Tunnel SOCKS5 server started on $dialerAddr")
+            showToast("🚀 Baidu Tunnel started")
 
             // Start acceptor thread
             Thread({ acceptLoop() }, "BaiduTunnel-Acceptor").apply {
@@ -136,7 +141,17 @@ class DialerBaiduService : IDialerService {
         }
         executor = null
 
-        LogUtil.i(TAG, "Baidu Tunnel SOCKS5 server stopped")
+        LogUtil.e(TAG, "🚀 Baidu Tunnel SOCKS5 server stopped")
+    }
+
+    private fun showToast(msg: String) {
+        try {
+            val ctx = appContext ?: return
+            Handler(Looper.getMainLooper()).post {
+                android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        } catch (_: Exception) {
+        }
     }
 
     private fun acceptLoop() {
@@ -188,6 +203,7 @@ class DialerBaiduService : IDialerService {
                 sendSocks5Success(output, client.localAddress.address, client.localPort)
 
                 LogUtil.e(TAG, "🚀 Baidu tunnel established for ${connectRequest.destinationAddress}:${connectRequest.destinationPort}")
+            showToast("🚀 Baidu → ${connectRequest.destinationAddress}:${connectRequest.destinationPort}")
 
                 // Start bidirectional relay (matching Go relayBidirectional)
                 relayBidirectional(client, baiduSocket)
@@ -444,7 +460,7 @@ class DialerBaiduService : IDialerService {
 
             // Read HTTP response (matching Go http.ReadResponse)
             val responseStr = readHttpResponse(input)
-            LogUtil.e(TAG, "Baidu CONNECT response: ${responseStr.take(100)}")
+            LogUtil.e(TAG, "🚀 Baidu CONNECT response: ${responseStr.take(100)}")
 
             if (!responseStr.startsWith("HTTP/1.1 200") && !responseStr.startsWith("HTTP/1.0 200")) {
                 LogUtil.e(TAG, "Baidu proxy CONNECT failed: ${responseStr.take(200)}")
