@@ -68,6 +68,14 @@ class DialerBaiduService : IDialerService {
         @Volatile
         var status: String = "disabled"
             private set
+
+        @Volatile
+        var lastError: String = ""
+            private set
+
+        @Volatile
+        var lastBaiduResponse: String = ""
+            private set
     }
 
     @Volatile
@@ -80,8 +88,7 @@ class DialerBaiduService : IDialerService {
 
     override fun start(context: Context, dialerAddr: String) {
         stop()
-        status = "starting"
-        AngNotificationManager.refreshBaiduStatus()
+        setStatus("starting")
 
         if (dialerAddr.isEmpty()) {
             LogUtil.e(TAG, "Empty dialer address")
@@ -109,8 +116,7 @@ class DialerBaiduService : IDialerService {
             }
             running.set(true)
 
-            status = "active"
-            AngNotificationManager.refreshBaiduStatus()
+            setStatus("active")
             LogUtil.e(TAG, "🚀 Baidu Tunnel SOCKS5 server started on $dialerAddr")
 
             // Start acceptor thread
@@ -119,7 +125,7 @@ class DialerBaiduService : IDialerService {
                 start()
             }
         } catch (e: Exception) {
-            LogUtil.e(TAG, "Failed to start Baidu Tunnel server", e)
+            LogUtil.e(TAG, "Failed to start Baidu Tunnel server: ${e.message}")
             stop()
         }
     }
@@ -139,8 +145,7 @@ class DialerBaiduService : IDialerService {
         }
         executor = null
 
-        status = "stopped"
-        AngNotificationManager.refreshBaiduStatus()
+        setStatus("stopped")
         LogUtil.e(TAG, "🚀 Baidu Tunnel SOCKS5 server stopped")
     }
 
@@ -192,8 +197,7 @@ class DialerBaiduService : IDialerService {
                 // Send SOCKS5 success response
                 sendSocks5Success(output, client.localAddress.address, client.localPort)
 
-                status = "tunneling"
-                AngNotificationManager.refreshBaiduStatus()
+                setStatus("tunneling")
                 LogUtil.e(TAG, "🚀 Baidu tunnel established for ${connectRequest.destinationAddress}:${connectRequest.destinationPort}")
 
                 // Start bidirectional relay (matching Go relayBidirectional)
@@ -205,7 +209,7 @@ class DialerBaiduService : IDialerService {
     }
 
     // ------------------------------------------------------------------
-    // SOCKS5 handshake (matching Go performSOCKSHandshake)
+    // SOCKS5 handshake
     // ------------------------------------------------------------------
 
     private fun handleSocks5Handshake(input: InputStream, output: OutputStream): Boolean {
@@ -396,7 +400,7 @@ class DialerBaiduService : IDialerService {
     }
 
     // ------------------------------------------------------------------
-    // Baidu tunnel dial (matching Go dialBaiduTunnel exactly)
+    // Baidu tunnel dial: try bare TCP first, fall back to TLS
     // ------------------------------------------------------------------
 
     private fun dialBaiduTunnel(
@@ -406,14 +410,39 @@ class DialerBaiduService : IDialerService {
         targetPort: Int
     ): Socket? {
         // Try bare TCP first (matching Go reference implementation exactly)
-        // Fall back to TLS on failure (some restrictive networks need it)
         val socket = tryBareTcpConnect(proxyHost, proxyPort, targetHost, targetPort)
         if (socket != null) return socket
 
+        // Fall back to TLS (some restrictive networks need it)
         return tryTlsConnect(proxyHost, proxyPort, targetHost, targetPort)
     }
 
-    /** Try TLS connection first */
+    private fun tryBareTcpConnect(
+        proxyHost: String, proxyPort: Int,
+        targetHost: String, targetPort: Int
+    ): Socket? {
+        return try {
+            val sock = Socket()
+            sock.connect(
+                java.net.InetSocketAddress(proxyHost, proxyPort),
+                BAIDU_CONNECT_TIMEOUT_MS
+            )
+
+            if (sendConnectAndCheckResponse(sock, targetHost, targetPort)) {
+                LogUtil.e(TAG, "🚀 Baidu tunnel established (bare TCP)")
+                lastError = ""
+                sock
+            } else {
+                sock.close()
+                null
+            }
+        } catch (e: Exception) {
+            lastError = "TCP: ${e.message}"
+            LogUtil.d(TAG, "Bare TCP connect failed: ${e.message}")
+            null
+        }
+    }
+
     private fun tryTlsConnect(
         proxyHost: String, proxyPort: Int,
         targetHost: String, targetPort: Int
@@ -428,54 +457,27 @@ class DialerBaiduService : IDialerService {
             val sslSocket = sslFactory.createSocket(sock, proxyHost, proxyPort, true) as javax.net.ssl.SSLSocket
             sslSocket.startHandshake()
 
-            val output = sslSocket.getOutputStream()
-            val input = sslSocket.getInputStream()
-
-            if (sendConnectAndCheckResponse(output, input, targetHost, targetPort)) {
+            if (sendConnectAndCheckResponse(sslSocket, targetHost, targetPort)) {
                 LogUtil.e(TAG, "🚀 Baidu tunnel established (TLS)")
+                lastError = ""
                 sslSocket
             } else {
                 sslSocket.close()
                 null
             }
         } catch (e: Exception) {
-            LogUtil.d(TAG, "TLS connect failed, trying bare TCP: ${e.message}")
+            lastError = "TLS: ${e.message}"
+            LogUtil.d(TAG, "TLS connect failed: ${e.message}")
             null
         }
     }
 
-    /** Fall back to bare TCP (matching Go exactly) */
-    private fun tryBareTcpConnect(
-        proxyHost: String, proxyPort: Int,
-        targetHost: String, targetPort: Int
-    ): Socket? {
-        return try {
-            val sock = Socket()
-            sock.connect(
-                java.net.InetSocketAddress(proxyHost, proxyPort),
-                BAIDU_CONNECT_TIMEOUT_MS
-            )
-            val output = sock.getOutputStream()
-            val input = sock.getInputStream()
-
-            if (sendConnectAndCheckResponse(output, input, targetHost, targetPort)) {
-                LogUtil.e(TAG, "🚀 Baidu tunnel established (bare TCP)")
-                sock
-            } else {
-                sock.close()
-                null
-            }
-        } catch (e: Exception) {
-            LogUtil.d(TAG, "Bare TCP connect failed: ${e.message}")
-            null
-        }
-    }
-
-    /** Send HTTP CONNECT and check response */
     private fun sendConnectAndCheckResponse(
-        output: OutputStream, input: InputStream,
-        targetHost: String, targetPort: Int
+        sock: Socket, targetHost: String, targetPort: Int
     ): Boolean {
+        val output = sock.getOutputStream()
+        val input = sock.getInputStream()
+
         val connectRequest = buildString {
             append("CONNECT $targetHost:$targetPort HTTP/1.1\r\n")
             append("Host: sptest.baidu.com\r\n")
@@ -490,10 +492,12 @@ class DialerBaiduService : IDialerService {
         output.flush()
 
         val responseStr = readHttpResponse(input)
+        lastBaiduResponse = responseStr.take(200)
         LogUtil.e(TAG, "🚀 Baidu CONNECT response: ${responseStr.take(100)}")
 
         if (!responseStr.startsWith("HTTP/1.1 200") && !responseStr.startsWith("HTTP/1.0 200")) {
             LogUtil.e(TAG, "❌ Baidu proxy CONNECT failed: ${responseStr.take(200)}")
+            lastError = "Baidu returned: ${responseStr.take(80)}"
             return false
         }
 
@@ -586,5 +590,14 @@ class DialerBaiduService : IDialerService {
             } catch (_: Exception) {
             }
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Status helper
+    // ------------------------------------------------------------------
+
+    private fun setStatus(newStatus: String) {
+        status = newStatus
+        AngNotificationManager.refreshBaiduStatus()
     }
 }

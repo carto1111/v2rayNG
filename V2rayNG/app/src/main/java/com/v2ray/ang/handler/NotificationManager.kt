@@ -188,7 +188,12 @@ object NotificationManager {
                 baiduStatus == "active" -> "🌐 Baidu Tunnel: active"
                 baiduStatus == "stopped" -> "🌐 Baidu Tunnel: stopped"
                 baiduStatus == "starting" -> "🌐 Baidu Tunnel: starting..."
-                else -> contentText?.lines()?.firstOrNull() ?: ""
+                else -> {
+                    val err = DialerBaiduService.lastError
+                    val resp = DialerBaiduService.lastBaiduResponse
+                    if (err.isNotEmpty()) "🌐 Baidu Error: $err"
+                    else contentText?.lines()?.firstOrNull() ?: ""
+                }
             }
             mBuilder?.setContentText(summaryText)
             getNotificationManager()?.notify(NOTIFICATION_ID, mBuilder?.build())
@@ -238,7 +243,11 @@ object NotificationManager {
                 "active" -> "🌐 Baidu Tunnel: active"
                 "starting" -> "🌐 Baidu Tunnel: starting..."
                 "stopped" -> "🌐 Baidu Tunnel: stopped"
-                else -> ""
+                else -> {
+                    val err = DialerBaiduService.lastError
+                    if (err.isNotEmpty()) "🌐 Baidu Error: $err"
+                    else ""
+                }
             }
             if (summaryText.isNotEmpty()) {
                 mBuilder?.setContentText(summaryText)
