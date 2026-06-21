@@ -11,8 +11,6 @@ import java.net.SocketTimeoutException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
-import javax.net.ssl.SSLSocket
-import javax.net.ssl.SSLSocketFactory
 
 /**
  * Baidu Tunnel SOCKS5 proxy service.
@@ -417,19 +415,15 @@ class DialerBaiduService : IDialerService {
     ): Socket? {
         return try {
             // Dial with timeout (matching Go net.DialTimeout)
+            // IMPORTANT: Go connects with bare TCP to port 443, NO TLS
             val sock = Socket()
             sock.connect(
                 java.net.InetSocketAddress(proxyHost, proxyPort),
                 BAIDU_CONNECT_TIMEOUT_MS
             )
 
-            // Wrap in SSL (matching Go net.Dial("tcp", proxyAddr) then writing CONNECT)
-            val sslFactory = SSLSocketFactory.getDefault() as SSLSocketFactory
-            val sslSocket = sslFactory.createSocket(sock, proxyHost, proxyPort, true) as SSLSocket
-            sslSocket.startHandshake()
-
-            val output = sslSocket.getOutputStream()
-            val input = sslSocket.getInputStream()
+            val output = sock.getOutputStream()
+            val input = sock.getInputStream()
 
             // Build CONNECT request matching Go exactly:
             // fmt.Sprintf("CONNECT %s:%s HTTP/1.1\r\nHost: sptest.baidu.com\r\nX-T5-Auth: 482857715\r\nUser-Agent: okhttp/3.11.0 ...\r\nProxy-Connection: keep-alive\r\nConnection: keep-alive\r\n\r\n")
@@ -452,12 +446,12 @@ class DialerBaiduService : IDialerService {
 
             if (!responseStr.startsWith("HTTP/1.1 200") && !responseStr.startsWith("HTTP/1.0 200")) {
                 LogUtil.d(TAG, "Baidu proxy CONNECT failed: ${responseStr.take(200)}")
-                sslSocket.close()
+                sock.close()
                 return null
             }
 
             // Success - tunnel established
-            sslSocket
+            sock
         } catch (e: SocketTimeoutException) {
             LogUtil.d(TAG, "Baidu tunnel connect timeout: ${e.message}")
             null
