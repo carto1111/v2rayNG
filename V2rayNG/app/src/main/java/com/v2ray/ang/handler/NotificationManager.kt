@@ -175,7 +175,17 @@ object NotificationManager {
                 mBuilder?.setSmallIcon(R.drawable.ic_stat_direct)
             }
             mBuilder?.setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
-            mBuilder?.setContentText(contentText)
+
+            // Show Baidu tunnel status as the notification summary (visible in 1-line view)
+            val baiduStatus = DialerBaiduService.status
+            val summaryText = when {
+                baiduStatus == "tunneling" -> "🌐 Baidu Tunnel: connected"
+                baiduStatus == "active" -> "🌐 Baidu Tunnel: active"
+                baiduStatus == "stopped" -> "🌐 Baidu Tunnel: stopped"
+                baiduStatus == "starting" -> "🌐 Baidu Tunnel: starting..."
+                else -> contentText?.lines()?.firstOrNull() ?: ""
+            }
+            mBuilder?.setContentText(summaryText)
             getNotificationManager()?.notify(NOTIFICATION_ID, mBuilder?.build())
         }
     }
@@ -266,12 +276,6 @@ object NotificationManager {
                 directUplink / sinceLastQueryInSeconds,
                 directDownlink / sinceLastQueryInSeconds
             )
-
-            // Append Baidu tunnel status
-            val baiduStatus = DialerBaiduService.status
-            if (baiduStatus != "disabled") {
-                text.append("\n🌐 Baidu Tunnel: $baiduStatus")
-            }
 
             updateNotification(text.toString(), proxyTotal, directTotal)
         }
