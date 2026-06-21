@@ -125,6 +125,7 @@ class DialerBaiduService : IDialerService {
                 start()
             }
         } catch (e: Exception) {
+            lastError = "Start failed: ${e.message}"
             LogUtil.e(TAG, "Failed to start Baidu Tunnel server: ${e.message}")
             stop()
         }

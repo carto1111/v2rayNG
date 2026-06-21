@@ -186,7 +186,11 @@ object NotificationManager {
             val summaryText = when {
                 baiduStatus == "tunneling" -> "🌐 Baidu Tunnel: connected"
                 baiduStatus == "active" -> "🌐 Baidu Tunnel: active"
-                baiduStatus == "stopped" -> "🌐 Baidu Tunnel: stopped"
+                baiduStatus == "stopped" -> {
+                    val err = DialerBaiduService.lastError
+                    if (err.isNotEmpty()) "🌐 Baidu Error: $err"
+                    else "🌐 Baidu Tunnel: stopped"
+                }
                 baiduStatus == "starting" -> "🌐 Baidu Tunnel: starting..."
                 else -> {
                     val err = DialerBaiduService.lastError
@@ -242,7 +246,11 @@ object NotificationManager {
                 "tunneling" -> "🌐 Baidu Tunnel: connected"
                 "active" -> "🌐 Baidu Tunnel: active"
                 "starting" -> "🌐 Baidu Tunnel: starting..."
-                "stopped" -> "🌐 Baidu Tunnel: stopped"
+                "stopped" -> {
+                    val err = DialerBaiduService.lastError
+                    if (err.isNotEmpty()) "🌐 Baidu Error: $err"
+                    else "🌐 Baidu Tunnel: stopped"
+                }
                 else -> {
                     val err = DialerBaiduService.lastError
                     if (err.isNotEmpty()) "🌐 Baidu Error: $err"
