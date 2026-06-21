@@ -27,6 +27,7 @@ import com.v2ray.ang.service.CoreProxyOnlyService
 import com.v2ray.ang.service.CoreVpnService
 import com.v2ray.ang.service.DialerNativeService
 import com.v2ray.ang.service.DialerWebviewService
+import com.v2ray.ang.service.DialerBaiduService
 import com.v2ray.ang.service.IDialerService
 import com.v2ray.ang.util.LogUtil
 import com.v2ray.ang.util.MessageUtil
@@ -47,6 +48,7 @@ object CoreServiceManager {
     private var currentConfig: ProfileItem? = null
     private var processFinder: XrayProcessFinder? = null
     private var browserDialer: IDialerService? = null
+    private var baiduDialer: IDialerService? = null
 
     var serviceControl: SoftReference<ServiceControl>? = null
         set(value) {
@@ -256,6 +258,19 @@ object CoreServiceManager {
         }
 
         NotificationManager.showNotification(currentConfig)
+
+        // Start baidu tunnel dialer if enabled (uses IDialerService pattern)
+        if (config.baiduTunnelEnabled) {
+            try {
+                val baiduDialerAddr = "127.0.0.1:${AppConfig.BAIDU_TUNNEL_PORT}"
+                baiduDialer = DialerBaiduService()
+                baiduDialer?.start(service, baiduDialerAddr)
+                LogUtil.i(AppConfig.TAG, "Baidu tunnel dialer started on $baiduDialerAddr")
+            } catch (e: Exception) {
+                LogUtil.e(AppConfig.TAG, "Failed to start baidu tunnel dialer", e)
+            }
+        }
+
         CoreNativeManager.reconcileBrowserDialer(dialerAddr)
         coreController.startLoop(result.content, tunFd)
 
@@ -303,6 +318,17 @@ object CoreServiceManager {
         if (browserDialer != null) {
             browserDialer!!.stop()
             browserDialer = null
+        }
+
+        // Stop baidu tunnel dialer if running
+        if (baiduDialer != null) {
+            try {
+                baiduDialer!!.stop()
+            } catch (e: Exception) {
+                LogUtil.e(AppConfig.TAG, "Failed to stop baidu tunnel dialer", e)
+            }
+            baiduDialer = null
+            LogUtil.i(AppConfig.TAG, "Baidu tunnel dialer stopped")
         }
 
         MessageUtil.sendMsg2UI(service, AppConfig.MSG_STATE_STOP_SUCCESS, "")

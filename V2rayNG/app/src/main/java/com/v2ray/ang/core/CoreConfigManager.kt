@@ -146,6 +146,25 @@ object CoreConfigManager {
         if (v2rayConfig.outbounds.isNotEmpty()) {
             v2rayConfig.outbounds.removeAt(0)
         }
+
+        // Insert baidu tunnel SOCKS5 outbound if enabled for the primary profile
+        if (primaryResolvedOutbound.profile.baiduTunnelEnabled) {
+            val baiduOutbound = V2rayConfig.OutboundBean(
+                protocol = "socks",
+                tag = AppConfig.TAG_BAIDU_TUNNEL,
+                settings = V2rayConfig.OutboundBean.OutSettingsBean(
+                    servers = listOf(
+                        V2rayConfig.OutboundBean.OutSettingsBean.ServersBean(
+                            address = "127.0.0.1",
+                            port = AppConfig.BAIDU_TUNNEL_PORT
+                        )
+                    )
+                ),
+                streamSettings = null,
+                mux = null
+            )
+            v2rayConfig.outbounds.add(0, baiduOutbound)
+        }
         val existingTags = v2rayConfig.outbounds.mapTo(mutableSetOf()) { it.tag }
         val policyGroupBalancerTags = mutableMapOf<String, String>()
         val balancerStrategies = mutableListOf<BalancerStrategy>()
@@ -257,6 +276,9 @@ object CoreConfigManager {
             return
         }
         outbound.tag = resolvedOutbound.tag
+        if (profile.baiduTunnelEnabled) {
+            outbound.ensureSockopt().dialerProxy = AppConfig.TAG_BAIDU_TUNNEL
+        }
         if (prepend) {
             v2rayConfig.outbounds.add(0, outbound)
         } else {

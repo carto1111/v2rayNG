@@ -79,6 +79,12 @@ object AppConfig {
     const val PREF_AUTO_SORT_AFTER_TEST = "pref_auto_sort_after_test"
     const val PREF_REAL_PING_CONCURRENCY = "pref_real_ping_concurrency"
 
+    /** Baidu tunnel constants. */
+    const val BAIDU_TUNNEL_ARM64 = "baidu_tunnel_arm64"
+    const val BAIDU_TUNNEL_PORT = 10809
+    const val TAG_BAIDU_TUNNEL = "baidu-tunnel"
+    const val PREF_BAIDU_TUNNEL_ENABLED = "pref_baidu_tunnel_enabled"
+
     /** Cache keys. */
     const val CACHE_SUBSCRIPTION_ID = "cache_subscription_id"
 

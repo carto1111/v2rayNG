@@ -69,6 +69,7 @@ data class ProfileItem(
     var proxyChainProfiles: String? = null,
 
     var browserDialerMode: String? = null,
+    var baiduTunnelEnabled: Boolean = false,
 
     ) {
     companion object {
