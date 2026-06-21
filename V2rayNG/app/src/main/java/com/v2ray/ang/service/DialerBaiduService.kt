@@ -2,6 +2,7 @@ package com.v2ray.ang.service
 
 import android.content.Context
 import com.v2ray.ang.util.LogUtil
+import com.v2ray.ang.handler.NotificationManager as AngNotificationManager
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetAddress
@@ -80,6 +81,7 @@ class DialerBaiduService : IDialerService {
     override fun start(context: Context, dialerAddr: String) {
         stop()
         status = "starting"
+        AngNotificationManager.refreshBaiduStatus()
 
         if (dialerAddr.isEmpty()) {
             LogUtil.e(TAG, "Empty dialer address")
@@ -108,6 +110,7 @@ class DialerBaiduService : IDialerService {
             running.set(true)
 
             status = "active"
+            AngNotificationManager.refreshBaiduStatus()
             LogUtil.e(TAG, "🚀 Baidu Tunnel SOCKS5 server started on $dialerAddr")
 
             // Start acceptor thread
@@ -137,6 +140,7 @@ class DialerBaiduService : IDialerService {
         executor = null
 
         status = "stopped"
+        AngNotificationManager.refreshBaiduStatus()
         LogUtil.e(TAG, "🚀 Baidu Tunnel SOCKS5 server stopped")
     }
 
@@ -189,6 +193,7 @@ class DialerBaiduService : IDialerService {
                 sendSocks5Success(output, client.localAddress.address, client.localPort)
 
                 status = "tunneling"
+                AngNotificationManager.refreshBaiduStatus()
                 LogUtil.e(TAG, "🚀 Baidu tunnel established for ${connectRequest.destinationAddress}:${connectRequest.destinationPort}")
 
                 // Start bidirectional relay (matching Go relayBidirectional)

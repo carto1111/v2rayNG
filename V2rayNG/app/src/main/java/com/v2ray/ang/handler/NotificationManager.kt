@@ -226,6 +226,29 @@ object NotificationManager {
      * @param lastZeroSpeed The previous zero speed state.
      * @return The current zero speed state.
      */
+    fun refreshBaiduStatus() {
+        if (mBuilder != null) {
+            val baiduStatus = DialerBaiduService.status
+            val summaryText = when (baiduStatus) {
+                "tunneling" -> "🌐 Baidu Tunnel: connected"
+                "active" -> "🌐 Baidu Tunnel: active"
+                "starting" -> "🌐 Baidu Tunnel: starting..."
+                "stopped" -> "🌐 Baidu Tunnel: stopped"
+                else -> ""
+            }
+            if (summaryText.isNotEmpty()) {
+                mBuilder?.setContentText(summaryText)
+                getNotificationManager()?.notify(NOTIFICATION_ID, mBuilder?.build())
+            }
+        }
+    }
+
+    /**
+     * Updates the speed notification once.
+     * Queries traffic stats, separates proxy and direct, and updates the notification.
+     * @param lastZeroSpeed The previous zero speed state.
+     * @return The current zero speed state.
+     */
     private fun updateSpeedNotificationOnce(lastZeroSpeed: Boolean): Boolean {
         val queryTime = System.currentTimeMillis()
         val sinceLastQueryIn = (queryTime - lastQueryTime)
