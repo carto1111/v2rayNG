@@ -405,12 +405,12 @@ class DialerBaiduService : IDialerService {
         targetHost: String,
         targetPort: Int
     ): Socket? {
-        // Try TLS first (port 443), fall back to bare TCP
-        // Some phones (Huawei) block non-TLS traffic on port 443
-        val socket = tryTlsConnect(proxyHost, proxyPort, targetHost, targetPort)
+        // Try bare TCP first (matching Go reference implementation exactly)
+        // Fall back to TLS on failure (some restrictive networks need it)
+        val socket = tryBareTcpConnect(proxyHost, proxyPort, targetHost, targetPort)
         if (socket != null) return socket
 
-        return tryBareTcpConnect(proxyHost, proxyPort, targetHost, targetPort)
+        return tryTlsConnect(proxyHost, proxyPort, targetHost, targetPort)
     }
 
     /** Try TLS connection first */
