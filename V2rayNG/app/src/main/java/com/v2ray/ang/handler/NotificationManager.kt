@@ -92,16 +92,17 @@ object NotificationManager {
                 ""
             }
 
-        mBuilder = NotificationCompat.Builder(service, channelId)
+        val builder = NotificationCompat.Builder(service, channelId)
             .setSmallIcon(R.drawable.ic_stat_name)
             .setContentTitle(currentConfig?.remarks)
             .setPriority(NotificationCompat.PRIORITY_MIN)
 
         // Show Baidu tunnel initial status if enabled
         if (currentConfig?.baiduTunnelEnabled == true) {
-            mBuilder?.setContentText("🌐 Baidu Tunnel: " + DialerBaiduService.status)
+            builder.setContentText("🌐 Baidu Tunnel: " + DialerBaiduService.status)
         }
-            .setOngoing(true)
+
+        builder.setOngoing(true)
             .setShowWhen(false)
             .setOnlyAlertOnce(true)
             .setContentIntent(contentPendingIntent)
@@ -116,9 +117,8 @@ object NotificationManager {
                 restartV2RayPendingIntent
             )
 
-        //mBuilder?.setDefaults(NotificationCompat.FLAG_ONLY_ALERT_ONCE)
-
-        service.startForeground(NOTIFICATION_ID, mBuilder?.build())
+        mBuilder = builder
+        service.startForeground(NOTIFICATION_ID, builder.build())
     }
 
     /**
