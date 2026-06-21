@@ -95,8 +95,12 @@ object NotificationManager {
         mBuilder = NotificationCompat.Builder(service, channelId)
             .setSmallIcon(R.drawable.ic_stat_name)
             .setContentTitle(currentConfig?.remarks)
-            .setContentText("🚀 Baidu Tunnel: starting…")
             .setPriority(NotificationCompat.PRIORITY_MIN)
+
+        // Show Baidu tunnel initial status if enabled
+        if (currentConfig?.baiduTunnelEnabled == true) {
+            mBuilder?.setContentText("🌐 Baidu Tunnel: " + DialerBaiduService.status)
+        }
             .setOngoing(true)
             .setShowWhen(false)
             .setOnlyAlertOnce(true)
