@@ -187,6 +187,8 @@ class DialerBaiduService : IDialerService {
                 // Send SOCKS5 success response
                 sendSocks5Success(output, client.localAddress.address, client.localPort)
 
+                LogUtil.i(TAG, "🚀 Baidu tunnel established for ${connectRequest.destinationAddress}:${connectRequest.destinationPort}")
+
                 // Start bidirectional relay (matching Go relayBidirectional)
                 relayBidirectional(client, baiduSocket)
             }
@@ -442,10 +444,10 @@ class DialerBaiduService : IDialerService {
 
             // Read HTTP response (matching Go http.ReadResponse)
             val responseStr = readHttpResponse(input)
-            LogUtil.d(TAG, "Baidu CONNECT response: ${responseStr.take(100)}")
+            LogUtil.i(TAG, "Baidu CONNECT response: ${responseStr.take(100)}")
 
             if (!responseStr.startsWith("HTTP/1.1 200") && !responseStr.startsWith("HTTP/1.0 200")) {
-                LogUtil.d(TAG, "Baidu proxy CONNECT failed: ${responseStr.take(200)}")
+                LogUtil.i(TAG, "Baidu proxy CONNECT failed: ${responseStr.take(200)}")
                 sock.close()
                 return null
             }
