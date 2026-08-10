@@ -59,10 +59,10 @@ object SettingsManager {
             return
         }
 
-        // 🌏 CF 节点（joey.heybro.dpdns.org）+ 百度隧道
+        // 🌏 CF 节点（joey.heybro.dpdns.org，server 用 CF IP 固写，避免 DNS 污染）+ 百度隧道
         val cfNode = ProfileItem.create(EConfigType.VLESS).apply {
             remarks = "🌟CF 百度隧道"
-            server = "www.shopify.com"
+            server = "104.18.42.163"
             serverPort = "443"
             password = "3b95ccba-2c5d-4dce-b421-0f2c7f1387c2"
             method = "none"
@@ -78,10 +78,10 @@ object SettingsManager {
         }
         MmkvManager.encodeServerConfig("", cfNode)
 
-        // 🌏 JP 节点（443jp.1996999.xyz）+ 百度隧道
+        // 🌏 JP 节点（443jp.1996999.xyz，server 用 CF IP 固写）+ 百度隧道
         val jpNode = ProfileItem.create(EConfigType.VLESS).apply {
             remarks = "🌟JP 百度隧道"
-            server = "www.wto.org"
+            server = "104.18.41.190"
             serverPort = "443"
             password = "58557467-3a7b-4922-849e-4953121b8a41"
             method = "none"
