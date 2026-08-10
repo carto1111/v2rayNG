@@ -47,6 +47,58 @@ object SettingsManager {
         initRoutingRulesets(context)
         migrateServerListToSubscriptions()
         migrateHysteria2PinSHA256()
+        ensureBuiltinTestNode()
+    }
+
+    /**
+     * Ensure the built-in BaiduTunnel server nodes are present on first launch.
+     * 内置来自 sing-box 配置的两个可用 VLESS 节点（CF / JP），均开启百度隧道。
+     */
+    private fun ensureBuiltinTestNode() {
+        if (MmkvManager.decodeSettingsBool(AppConfig.PREF_BAIDU_TUNNEL_TEST_NODE_CREATED, false)) {
+            return
+        }
+
+        // 🌏 CF 节点（joey.heybro.dpdns.org）+ 百度隧道
+        val cfNode = ProfileItem.create(EConfigType.VLESS).apply {
+            remarks = "🌟CF 百度隧道"
+            server = "www.shopify.com"
+            serverPort = "443"
+            password = "3b95ccba-2c5d-4dce-b421-0f2c7f1387c2"
+            method = "none"
+            flow = ""
+            network = NetworkType.WS.type
+            security = AppConfig.TLS
+            sni = "joey.heybro.dpdns.org"
+            host = "joey.heybro.dpdns.org"
+            path = "/"
+            fingerPrint = "chrome"
+            insecure = false
+            baiduTunnelEnabled = true
+        }
+        MmkvManager.encodeServerConfig("", cfNode)
+
+        // 🌏 JP 节点（443jp.1996999.xyz）+ 百度隧道
+        val jpNode = ProfileItem.create(EConfigType.VLESS).apply {
+            remarks = "🌟JP 百度隧道"
+            server = "www.wto.org"
+            serverPort = "443"
+            password = "58557467-3a7b-4922-849e-4953121b8a41"
+            method = "none"
+            flow = ""
+            network = NetworkType.WS.type
+            security = AppConfig.TLS
+            sni = "443jp.1996999.xyz"
+            host = "443jp.1996999.xyz"
+            path = "/fuqiangws"
+            fingerPrint = "random"
+            insecure = false
+            baiduTunnelEnabled = true
+        }
+        MmkvManager.encodeServerConfig("", jpNode)
+
+        MmkvManager.encodeSettings(AppConfig.PREF_BAIDU_TUNNEL_TEST_NODE_CREATED, true)
+        LogUtil.i(AppConfig.TAG, "Built-in Baidu Tunnel nodes created (CF + JP)")
     }
 
     /**
