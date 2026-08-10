@@ -31,9 +31,18 @@ class DialerBaiduService : IDialerService {
     companion object {
         private const val TAG = "DialerBaiduService"
 
-        // Baidu proxy endpoint
-        private const val BAIDU_PROXY_HOST = "cloudnproxy.baidu.com"
+        // Baidu proxy entry nodes (from official sing-box config, 4 ISPs + original)
+        // 电信 / 联通 / 移动 三网各一个入口，外加 cloudnproxy 原始入口
+        private const val BAIDU_HOST_DIANXIN = "180.101.50.249"   // 📍BD-电信
+        private const val BAIDU_HOST_LIANTONG = "157.0.146.158"    // 📍BD-联通
+        private const val BAIDU_HOST_YIDONG = "36.155.169.188"     // 📍BD-移动
+        private const val BAIDU_HOST_ORIGIN = "cloudnproxy.baidu.com" // 📍BD-原始
         private const val BAIDU_PROXY_PORT = 443
+
+        // 当前使用的百度入口（默认原始 cloudnproxy，会在 start 时按运营商自动选择）
+        @Volatile
+        private var currentBaiduHost: String = BAIDU_HOST_ORIGIN
+        private set
 
         // X-T5-Auth token - fixed value from Go reference implementation
         private const val X_T5_AUTH_TOKEN = "482857715"
@@ -107,6 +116,10 @@ class DialerBaiduService : IDialerService {
             return
         }
 
+        // 按当前运营商自动选择百度入口节点（电信/联通/移动/原始）
+        currentBaiduHost = selectBaiduHostByCarrier(context)
+        LogUtil.e(TAG, "🚀 Baidu Tunnel entry node: $currentBaiduHost")
+
         try {
             val sock = ServerSocket()
             sock.setReuseAddress(true)
@@ -153,6 +166,42 @@ class DialerBaiduService : IDialerService {
         LogUtil.e(TAG, "🚀 Baidu Tunnel SOCKS5 server stopped")
     }
 
+    /**
+     * 根据当前 SIM 卡运营商自动选择百度入口节点：
+     * - 中国电信 → BD-电信 (180.101.50.249)
+     * - 中国联通 → BD-联通 (157.0.146.158)
+     * - 中国移动 → BD-移动 (36.155.169.188)
+     * - 其他/无法识别 → BD-原始 (cloudnproxy.baidu.com)
+     */
+    private fun selectBaiduHostByCarrier(context: Context): String {
+        return try {
+            val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? android.telephony.TelephonyManager
+            if (tm == null) {
+                return BAIDU_HOST_ORIGIN
+            }
+
+            // 优先看当前注册网络运营商，其次 SIM 卡运营商
+            val operator = tm.networkOperatorName.ifBlank { tm.simOperatorName }
+            if (operator.isBlank()) {
+                return BAIDU_HOST_ORIGIN
+            }
+
+            val op = operator.lowercase()
+            when {
+                op.contains("电信") || op.contains("ct") || op.contains("chinatelecom") ||
+                    op.contains("中国电信") -> BAIDU_HOST_DIANXIN
+                op.contains("联通") || op.contains("cu") || op.contains("chinaunicom") ||
+                    op.contains("中国联通") -> BAIDU_HOST_LIANTONG
+                op.contains("移动") || op.contains("cm") || op.contains("chinamobile") ||
+                    op.contains("中国移动") -> BAIDU_HOST_YIDONG
+                else -> BAIDU_HOST_ORIGIN
+            }
+        } catch (e: Exception) {
+            LogUtil.d(TAG, "Carrier detection failed, fallback to origin: ${e.message}")
+            BAIDU_HOST_ORIGIN
+        }
+    }
+
     private fun acceptLoop() {
         val server = serverSocket ?: return
         val exec = executor ?: return
@@ -188,7 +237,7 @@ class DialerBaiduService : IDialerService {
 
                 // Connect through Baidu tunnel (exact Go implementation)
                 val baiduSocket = dialBaiduTunnel(
-                    BAIDU_PROXY_HOST,
+                    currentBaiduHost,
                     BAIDU_PROXY_PORT,
                     connectRequest.destinationAddress,
                     connectRequest.destinationPort
@@ -433,7 +482,7 @@ class DialerBaiduService : IDialerService {
             )
 
             if (sendConnectAndCheckResponse(sock, targetHost, targetPort)) {
-                LogUtil.e(TAG, "🚀 Baidu tunnel established (bare TCP)")
+                LogUtil.e(TAG, "🚀 Baidu tunnel established (bare TCP via $proxyHost)")
                 lastError = ""
                 sock
             } else {
@@ -462,7 +511,7 @@ class DialerBaiduService : IDialerService {
             sslSocket.startHandshake()
 
             if (sendConnectAndCheckResponse(sslSocket, targetHost, targetPort)) {
-                LogUtil.e(TAG, "🚀 Baidu tunnel established (TLS)")
+                LogUtil.e(TAG, "🚀 Baidu tunnel established (TLS via $proxyHost)")
                 lastError = ""
                 sslSocket
             } else {
