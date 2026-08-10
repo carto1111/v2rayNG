@@ -59,10 +59,10 @@ object SettingsManager {
             return
         }
 
-        // 🌏 CF 节点：server 用 joey.heybro.dpdns.org 解析出的 Cloudflare IP（参考 sing-box 配置）
+        // 🌏 CF 节点：完全对照 sing-box 配置（server 用配置里的域名，不改动）
         val cfNode = ProfileItem.create(EConfigType.VLESS).apply {
             remarks = "🌟CF 百度隧道"
-            server = "104.18.35.15"
+            server = "www.shopify.com"
             serverPort = "443"
             password = "3b95ccba-2c5d-4dce-b421-0f2c7f1387c2"
             method = "none"
@@ -78,10 +78,10 @@ object SettingsManager {
         }
         MmkvManager.encodeServerConfig("", cfNode)
 
-        // 🌏 JP 节点：server 用 443jp.1996999.xyz 解析出的 Cloudflare IP（参考 sing-box 配置）
+        // 🌏 JP 节点：完全对照 sing-box 配置（server 用配置里的域名，不改动）
         val jpNode = ProfileItem.create(EConfigType.VLESS).apply {
             remarks = "🌟JP 百度隧道"
-            server = "104.21.50.87"
+            server = "www.wto.org"
             serverPort = "443"
             password = "58557467-3a7b-4922-849e-4953121b8a41"
             method = "none"
